@@ -1,0 +1,53 @@
+name: FlipperDroid AIO Build
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Grant permissions
+        run: chmod +x gradlew
+
+      - name: Generate Environment Name
+        run: |
+          # Tworzymy nazwę środowiska tak jak chciałeś, ale eksportujemy ją poprawnie
+          RAW_NAME="internal-$(echo ${GITHUB_REF_NAME} | tr '/' '-')-${GITHUB_SHA::7}"
+          echo "ENV_NAME=$RAW_NAME" >> $GITHUB_ENV
+
+      - name: Build APK (Auto-Detect Module)
+        # Próbujemy zbudować :app:assembleInternal, a jeśli nie istnieje, samo assembleInternal
+        run: |
+          ./gradlew :app:assembleInternal -Dorg.gradle.project.env_name=${{ env.ENV_NAME }} --stacktrace || \
+          ./gradlew assembleInternal -Dorg.gradle.project.env_name=${{ env.ENV_NAME }} --stacktrace || \
+          ./gradlew assembleDebug --stacktrace
+
+      - name: Find and Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: FlipperDroid-Packages
+          path: "**/build/outputs/apk/**/*.apk"
